@@ -1,0 +1,156 @@
+﻿@page "/resources/create"
+@using Controllers
+@using Service.Models
+@inject NavigationManager Navigation
+@inject ResourceController _ResourceController
+@inject AdminProjectController _AdminProjectController
+@inject LoginController _LoginController
+@rendermode InteractiveServer
+
+<link href="styles/styleCreateResource.css" rel="stylesheet"/>
+
+<div class="resource-container">
+    <h3 class="resource-title">Create Resource</h3>
+
+    <EditForm Model="@newResource" OnValidSubmit="HandleValidSubmit" FormName="resourceForm">
+        <DataAnnotationsValidator/>
+        <ValidationSummary/>
+
+        <div class="form-group">
+            <label for="resourceName">Name</label>
+            <InputText id="resourceName" class="form-control mt-1" @bind-Value="newResource.Name" required/>
+        </div>
+
+        <div class="form-group mt-3">
+            <label for="resourceType">Type</label>
+            <InputText id="resourceType" class="form-control mt-1" @bind-Value="newResource.Type" required/>
+        </div>
+
+        <div class="form-group mt-3">
+            <label for="resourceDescription">Description</label>
+            <InputTextArea id="resourceDescription" class="form-control mt-1" @bind-Value="newResource.Description"/>
+        </div>
+
+        <div class="mb-3 mt-2">
+            <div class="d-flex justify-content-center align-items-center mb-4">
+                <input class="form-check-input" type="checkbox" id="concurrencyEnabled"
+                       @bind="newResource.ConcurrentUsage"/>
+                <label class="form-check-label ml-2" for="concurrencyEnabled">
+                    Enable concurrent usage
+                </label>
+            </div>
+
+            <label class="form-label mt-1">Assign to project (optional)</label>
+            <div class="d-flex justify-content-center mt-1">
+                <select class="form-select" @bind="selectedProjectId">
+                    <option value="">— Global resource —</option>
+                    @foreach (var proj in projects)
+                    {
+                        <option value="@proj.Id">@proj.Name</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary mt-3">Create Resource</button>
+    </EditForm>
+
+    @if (alertVisible)
+    {
+        <div class="alert alert-danger mt-3">
+            <strong>Error: </strong>@alertMessage
+            <button type="button" class="close" @onclick="ToggleAlertVisibility">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    }
+
+    @if (successVisible)
+    {
+        <div class="alert alert-success mt-3">
+            <strong>Success: </strong>@successMessage
+            <button type="button" class="close" @onclick="ToggleAlertVisibility">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    private ResourceDTO newResource = new();
+    private List<ProjectDTO> projects;
+    private int? selectedProjectId;
+    private bool alertVisible;
+    private string alertMessage = string.Empty;
+    private bool successVisible;
+    private string successMessage = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        newResource = new ResourceDTO
+        {
+            Description = "",
+            Name = "",
+            Type = "",
+            ConcurrentUsage = false
+        };
+        projects = _AdminProjectController.GetAllProjectsForAdmin();
+    }
+
+    private async void HandleValidSubmit()
+    {
+        try
+        {
+            if (!selectedProjectId.HasValue && !_LoginController.IsTheCurrentUserAdminSystem())
+            {
+                alertMessage = "Please select a project. As an Admin Project, you can only create a resource exclusive to your projects.";
+                alertVisible = true;
+                successVisible = false;
+                return;
+            }
+
+            if (selectedProjectId.HasValue)
+            {
+                newResource.Project = projects
+                    .First(p => p.Id == selectedProjectId.Value);
+            }
+
+            _ResourceController.CreateResource(newResource);
+            successMessage = "Resource created successfully!";
+            successVisible = true;
+            alertVisible = false;
+            await Task.Delay(1500);
+            ClearAllInputs();
+        }
+        catch (Exception ex)
+        {
+            alertMessage = $"An error occurred: {ex.Message}";
+            alertVisible = true;
+            successVisible = false;
+        }
+    }
+
+    private void ToggleAlertVisibility()
+    {
+        alertVisible = false;
+        successVisible = false;
+    }
+
+    private void ClearAllInputs()
+    {
+        newResource = new ResourceDTO
+        {
+            Description = "",
+            Name = "",
+            Type = "",
+            ConcurrentUsage = false
+        };
+
+        selectedProjectId = null;
+        alertVisible = false;
+        successVisible = false;
+
+        StateHasChanged();
+    }
+
+}
